@@ -93,7 +93,7 @@
 
                         <div class="mb-2">
                             @foreach ($carts as $cart)
-                                <div class="summary-row d-flex justify-content-between small mb-1 {{ $cart->needs_package ? 'text-danger' : 'text-muted' }}"
+                                <div class="summary-row d-flex justify-content-between small mb-1 {{ $cart->needs_package  ? 'text-danger' : 'text-muted' }}"
                                     data-cart-id="{{ $cart->id }}"
                                     >
                                     <span class="text-truncate pe-3">{{ $cart->book->title }}</span>
@@ -130,7 +130,7 @@
     </div>
 @endsection
 @push('scripts')
-    <script>
+  <script>
         document.addEventListener('DOMContentLoaded', () => {
             const checkboxes = document.querySelectorAll('.item-checkbox');
             const totalPriceText = document.getElementById('total-price-text');
@@ -176,5 +176,4 @@
             updateSummary()
         });
     </script>
-
 @endpush
