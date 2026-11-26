@@ -10,13 +10,12 @@
                     <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                 </div>
             @endif
+
             <!-- daftar buku -->
             <div class="col-8">
                 <div class="card">
                     <div class="card-body">
-                            <b><span class="cart-count"
-                                    id="{{ $carts->count() }}">0</span>
-                                Buku Terpilih</b>
+                        <span class="cart-count" id="cart-count">0</span> Buku Terpilih</b>
                     </div>
                 </div>
 
@@ -27,7 +26,7 @@
                                 {{-- checkbox --}}
                                 <div class="col-auto">
                                     <input type="checkbox" name="selected_carts[]" class="form-checkbox-input item-checkbox"
-                                        value="{{ $cart->id }} " data-price="{{ $cart->display_price }}">
+                                        value="{{ $cart->id }}" data-price="{{ $cart->display_price }}">
                                 </div>
                                 {{-- detail buku --}}
                                 <div class="col">
@@ -93,9 +92,8 @@
 
                         <div class="mb-2">
                             @foreach ($carts as $cart)
-                                <div class="summary-row d-flex justify-content-between small mb-1 {{ $cart->needs_package  ? 'text-danger' : 'text-muted' }}"
-                                    data-cart-id="{{ $cart->id }}"
-                                    >
+                                <div class="summary-row d-flex justify-content-between small mb-1 {{ $cart->needs_package ? 'text-danger' : 'text-muted' }}"
+                                    data-cart-id="{{ $cart->id }}">
                                     <span class="text-truncate pe-3">{{ $cart->book->title }}</span>
                                     <span class="fw-medium" style="text-align: right;">
                                         Rp{{ number_format($cart->display_price, 0, ',', '.') }}
@@ -113,12 +111,15 @@
 
                         <div class="d-flex justify-content-between mb-3 text-muted">
                             <span>Total Belanja</span>
-                            <h3 class="text-dark" id="total-price-text">Rp{{ number_format($totalPrice, 0, ',', '.') }}</h3>
+                            <h3 class="text-dark" id="total-price-text">Rp{{ number_format($totalPrice, 0, ',', '.') }}
+                            </h3>
                         </div>
 
-                        <form method="GET" id="form-checkout">
-                            <div id="checkout-input"></div>
-                            <button type="submit" class="btn btn-primary w-100 py-2.5 rounded-pill fw-semibold" id="btn-checkout">
+                        <form method="POST" action="{{ route('checkout.store') }}" id="form-checkout">
+                            @csrf
+                            <div id="checkout-inputs"></div>
+                            <button type="submit" class="btn btn-primary w-100 py-2.5 rounded-pill fw-semibold"
+                                id="btn-checkout">
                                 Checkout
                             </button>
                         </form>
@@ -130,7 +131,7 @@
     </div>
 @endsection
 @push('scripts')
-  <script>
+    <script>
         document.addEventListener('DOMContentLoaded', () => {
             const checkboxes = document.querySelectorAll('.item-checkbox');
             const totalPriceText = document.getElementById('total-price-text');
@@ -144,7 +145,7 @@
             function updateSummary() {
                 const checked = [...checkboxes].filter(cb => cb.checked);
                 const total = checked.reduce(
-                    (sum, cb) => sum + Number(cb.dataset.price),0
+                    (sum, cb) => sum + Number(cb.dataset.price), 0
                 );
 
                 totalPriceText.textContent = rupiah(total);
@@ -155,7 +156,7 @@
                     const row = document.querySelector(
                         `.summary-row[data-cart-id="${cb.value}"]`
                     );
-                    if(row) {
+                    if (row) {
                         if (cb.checked) {
                             row.classList.remove('d-none');
                         } else {
@@ -167,7 +168,7 @@
                 checkoutInputs.innerHTML = '';
                 checked.forEach(cb => {
                     checkoutInputs.innerHTML +=
-                        `<input type="hidden" name="selected-carts[]" value="${cb.value}">`;
+                        `<input type="hidden" name="selected_carts[]" value="${cb.value}">`;
                 })
             }
             checkboxes.forEach(cb => {

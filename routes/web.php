@@ -7,13 +7,16 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Admin\SubscriptionPackageController;
 use App\Http\Controllers\SubscriptionPackageBookController;
 use App\Http\Controllers\CartController;
+use App\Http\Controllers\CheckoutController;
+use App\Models\Checkout;
 
 Route::get('/', [UserController::class, 'home'])->name('home');
 Route::get('/search', [UserController::class, 'search'])->name('search');
 Route::get('/category/{id}', [UserController::class, 'categoryBooks'])->name('category.books');
 Route::get('/show-subscription-package/{id}', [SubscriptionPackageBookController::class, 'show'])->name('subscription_package.show');
 Route::get('/books/{id}', [BookController::class, 'show'])->name('books.show');
-// {id} -> patch dinamis
+Route::post('payments/midtrans-notification', [CheckoutController::class, 'receive']);
+// {id} -> patch dinamise
 Route::middleware('IsGuest')->group(function () {
     Route::get('/register', function () {
         return view('register');
@@ -34,6 +37,9 @@ Route::middleware('IsLoggedIn')->group(function () {
     Route::get('/cart', [CartController::class, 'index'])->name('cart');
     Route::post('/cart', [CartController::class, 'store'])->name('cart.store');
     Route::delete('/cart/{id}', [CartController::class, 'destroy'])->name('cart.destroy');
+
+    Route::post('checkout', [CheckoutController::class, 'store'])->name('checkout.store');
+    Route::get('checkout/{id}/snap', [CheckoutController::class, 'show'])->name('checkout.show');
 
     Route::middleware('IsAdmin')->prefix('admin')->name('admin.')->group(function () {
         Route::get('/dashboard', function () {

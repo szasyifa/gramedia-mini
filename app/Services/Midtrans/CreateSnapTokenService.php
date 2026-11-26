@@ -1,3 +1,5 @@
+<?php
+
 namespace App\Services\Midtrans;
 
 use Midtrans\Snap;
@@ -14,6 +16,7 @@ class CreateSnapTokenService extends Midtrans
 
     public function getSnapToken()
     {
+        $this->checkout->loadMissing(['checkoutBooks', 'checkoutBooks.book', 'user']);
         $params = [
             'transaction_details' => [
                 'order_id' => $this->checkout->order_code,
@@ -21,13 +24,12 @@ class CreateSnapTokenService extends Midtrans
             ],
             'item_details' => $this->checkout->checkoutBooks->map (fn ($row) =>
                 [
-                    'id' => 1,
-                    'price' => '150000',
+                    'id' => $row->id,
+                    'price' => $row->price,
                     'quantity' => 1,
-                    'name' => 'Flashdisk Toshiba 32GB',
+                    'name' => $row->book->title,
                 ],
-            )
-            ],
+            ),
             'customer_details' => [
                 'first_name' => $this->checkout->user->name,
                 'email' => $this->checkout->user->email,

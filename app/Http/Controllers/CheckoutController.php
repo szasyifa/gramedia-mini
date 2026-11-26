@@ -4,6 +4,13 @@ namespace App\Http\Controllers;
 
 use App\Models\Checkout;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use App\Models\Cart;
+use App\Models\CheckoutBook;
+use App\Services\Midtrans\CreateSnapTokenService;
+use App\Services\Midtrans\CallbackService;
+
 
 class CheckoutController extends Controller
 {
@@ -28,15 +35,76 @@ class CheckoutController extends Controller
      */
     public function store(Request $request)
     {
-        //
+        $request->validate([
+            'selected_carts' => ['required', 'array', 'min:1'],
+            'selected_carts.*' => ['exists:carts,id']
+        ]);
+        $selectedCarts = Cart::where('user_id', Auth::user()->id)
+            ->whereIn('id', $request->selected_carts)
+            ->with(['book', 'subscriptionPackage'])->get();
+        if (empty($selectedCarts)) {
+            return redirect()->back()->with('error', 'Buku tidak ada di keranjang Anda!');
+        }
+
+        $prices = $selectedCarts->mapWithKeys(
+            fn($row) =>
+            [
+                $row->id => $row->subscription_package_id == NULL ?
+                    $row->book->price : $row->subscriptionPackage->price
+            ]
+        );
+        $totalPrice = $prices->sum();
+
+        DB::beginTransaction();
+        try {
+            // buat data checkout
+            $checkout = Checkout::create([
+                'user_id' => Auth::user()->id,
+                'total_book_price' => $totalPrice,
+                'total_price' => $totalPrice,
+                'total_book' => $selectedCarts->count(),
+                'status' => 'pending',
+                'order_code' => 'ORD-' . time(),
+            ]);
+
+            // 2. Simpan satu-satunya buku yang di checkout
+            foreach ($selectedCarts as $item) {
+                CheckoutBook::create([
+                    'book_id' => $item->book_id,
+                    'subscription_package_id' => $item->subscription_package_id,
+                    'price' => $prices[$item->id],
+                    'checkout_id' => $checkout->id
+                ]);
+            }
+            // 3. hapus buku dari keranjang
+            Cart::whereIn('id', $request->selected_carts)->delete();
+            // jikan berhasil ketiganya, sahkan perubahan di db
+            DB::commit();
+            // panggil fungsi show dari routing untuk meminta dan mengambil snap token dari midtrans
+            return redirect()->route('checkout.show', $checkout->id);
+        } catch (\Throwable $th) {
+            DB::rollBack();
+            dd($th); //cek detail error sebelum di hosting
+            return redirect()->back()->with('error', 'Terjadi kesalahan saat checkout, Silahkan coba lagi!');
+        }
     }
 
     /**
      * Display the specified resource.
      */
-    public function show(Checkout $checkout)
+    public function show($id)
     {
-        //
+        $checkout = Checkout::findOrFail($id);
+        $snapToken = $checkout->snap_token;
+        if (is_null($snapToken)) {
+            // If snap token is still NULL, generate snap token and save it to database
+            $midtrans = new CreateSnapTokenService($checkout);
+            $snapToken = $midtrans->getSnapToken();
+
+            $checkout->snap_token = $snapToken;
+            $checkout->save();
+        }
+        return view('user.checkout.show', compact('checkout', 'snapToken'));
     }
 
     /**
@@ -61,5 +129,46 @@ class CheckoutController extends Controller
     public function destroy(Checkout $checkout)
     {
         //
+    }
+
+    public function receive()
+    {
+        $callback = new CallbackService();
+
+        if ($callback->isSignatureKeyVerified()) {
+            $checkout = $callback->getCheckout();
+
+            if ($callback->isSuccess()) {
+                $checkout->update([
+                    'status' => 'paid',
+                    'payment_method' => $callback->getPaymentType(),
+                    'paid_date' => now(),
+                ]);
+            }
+
+            if ($callback->isExpire()) {
+                $checkout->update([
+                    'status' => 'expired',
+                ]);
+            }
+
+            if ($callback->isCancelled()) {
+                $checkout->update([
+                    'status' => 'failed',
+                ]);
+            }
+
+            return response()
+                ->json([
+                    'success' => true,
+                    'message' => 'Notification successfully processed',
+                ]);
+        } else {
+            return response()
+                ->json([
+                    'error' => true,
+                    'message' => 'Signature key not verified',
+                ], 403);
+        }
     }
 }
